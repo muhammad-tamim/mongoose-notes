@@ -4,6 +4,9 @@
 - [Introduction:](#introduction)
   - [Schema:](#schema)
   - [Model:](#model)
+- [Schemas:](#schemas)
+- [Examples:](#examples)
+  - [Example 1:](#example-1)
 
 # Setup: 
 - step 1: 
@@ -132,4 +135,104 @@ A Model is a wrapper around the schema used to interact with the database.
 
 ```
 const User = mongoose.model('User', userSchema);
+```
+
+# Schemas: 
+
+# Examples: 
+
+## Example 1: 
+
+```js
+// index.js
+
+const express = require('express');
+const cors = require('cors');
+require('dotenv').config();
+const mongoose = require('mongoose');
+
+const app = express();
+const port = process.env.PORT || 3000;
+
+// middleware
+app.use(cors());
+app.use(express.json());
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI);
+
+
+// Mongoose Schema + Model
+const userSchema = new mongoose.Schema({
+    name: String,
+    email: String,
+});
+
+const UsersCollection = mongoose.model('User', userSchema);
+
+// all cred operations 
+
+// root
+app.get('/', (req, res) => {
+    res.send('Hello World!');
+});
+
+// CREATE
+app.post('/users', async (req, res) => {
+    const user = req.body
+    const result = await UsersCollection.create(user);
+    res.send(result);
+});
+
+// READ ALL
+app.get('/users', async (req, res) => {
+    const result = await UsersCollection.find()
+    res.send(result)
+})
+
+// READ ONE
+app.get('/users/:id', async (req, res) => {
+    const filter = req.params.id
+    const result = await UsersCollection.findById(filter);
+    res.send(result);
+});
+
+// PATCH UPDATE
+app.patch('/users/:id', async (req, res) => {
+    const filter = req.params.id
+    const { name, email } = req.body
+    const updatedData = { name, email }
+    const updatedDoc = {
+        new: true,
+        runValidators: true
+    }
+    const result = await UsersCollection.findByIdAndUpdate(filter, updatedData, updatedDoc);
+    res.send(result);
+});
+
+// PUT UPDATE 
+app.put('/users/:id', async (req, res) => {
+    const filter = req.params.id
+    const updatedData = req.body
+    const updatedDoc = {
+        new: true,
+        runValidators: true,
+        overwrite: true,
+    }
+    const result = await UsersCollection.findByIdAndUpdate(filter, updatedData, updatedDoc);
+    res.send(result);
+});
+
+// DELETE
+app.delete('/users/:id', async (req, res) => {
+    const filter = req.params.id
+    const result = await UsersCollection.findByIdAndDelete(filter)
+    res.send(result)
+});
+
+
+// Server Start
+app.listen(port, () => {
+    console.log(`🚀 Server running on port ${port}`);
+});
 ```
