@@ -2,6 +2,8 @@
 
 - [Setup:](#setup)
 - [Introduction:](#introduction)
+  - [Schema:](#schema)
+  - [Model:](#model)
 
 # Setup: 
 - step 1: 
@@ -105,3 +107,29 @@ MONGODB_URI=mongodb://localhost:27017/usersDB
 ```
 
 # Introduction: 
+Mongoose is an ODM (Object Data Modeling) library for Node.js that simplifies working with MongoDB. It adds structure and validation to MongoDB by providing:
+- Schemas 
+- Models 
+- Built-in validation and middleware
+
+So Mongoose gives us SQL-like discipline for a NoSQL database.
+
+## Schema:
+A Schema defines the structure of your data.
+
+```js
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+  age: Number
+});
+```
+
+## Model: 
+A Model is a wrapper around the schema used to interact with the database.
+
+```
+const User = mongoose.model('User', userSchema);
+```
