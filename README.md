@@ -5,6 +5,7 @@
   - [Schema:](#schema)
   - [Model:](#model)
   - [Operation Buffering:](#operation-buffering)
+  - [Error Handling:](#error-handling)
 - [Schema Types:](#schema-types)
 - [Schema Type Options:](#schema-type-options)
   - [Common Schema Type Options:](#common-schema-type-options)
@@ -169,6 +170,38 @@ mongoose.connect('mongodb://127.0.0.1:27017/myapp');
 const MyModel = mongoose.model('Test', new Schema({ name: String }));
 // Works
 await MyModel.findOne();
+```
+
+## Error Handling: 
+- Connection level: 
+
+```js
+mongoose.connect('mongodb://127.0.0.1:27017/test').
+  catch(error => handleError(error));
+
+// Or:
+try {
+  await mongoose.connect('mongodb://127.0.0.1:27017/test');
+} catch (error) {
+  console.log(error);
+}
+```
+
+- Schema Level(Validation Errors): 
+
+```js
+const userSchema = new mongoose.Schema({
+  email: {
+    type: String,
+    required: [true, "Email is required"],
+    unique: true,
+    match: [/^\S+@\S+\.\S+$/, "Invalid email format"]
+  },
+  age: {
+    type: Number,
+    min: [18, "Must be at least 18"]
+  }
+});
 ```
 
 
