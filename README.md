@@ -1,14 +1,35 @@
 <h1 align="center">Mongoose Notes</h1>
 
-- [Setup:](#setup)
+- [Setup for Express + JS + Mongoose:](#setup-for-express--js--mongoose)
 - [Introduction:](#introduction)
   - [Schema:](#schema)
   - [Model:](#model)
-- [Schemas:](#schemas)
+- [Schema Types:](#schema-types)
+- [Schema Type Options:](#schema-type-options)
+  - [Common Schema Type Options:](#common-schema-type-options)
+    - [required:](#required)
+    - [default:](#default)
+    - [unique:](#unique)
+    - [select:](#select)
+    - [immutable:](#immutable)
+    - [validate:](#validate)
+    - [Set:](#set)
+    - [Get:](#get)
+    - [Index:](#index)
+    - [expires:](#expires)
+  - [String-Specific Schema Type Options:](#string-specific-schema-type-options)
+    - [lowercase, uppercase, trim:](#lowercase-uppercase-trim)
+    - [match:](#match)
+    - [enum:](#enum)
+  - [Number-Specific Schema Type Options:](#number-specific-schema-type-options)
+    - [min / max:](#min--max)
+  - [ObjectId-Specific Schema Type Options:](#objectid-specific-schema-type-options)
+    - [ref:](#ref)
+  - [Example:](#example)
 - [Examples:](#examples)
-  - [Example 1:](#example-1)
+  - [Example 1: Express + JS + Mongoose](#example-1-express--js--mongoose)
 
-# Setup: 
+# Setup for Express + JS + Mongoose: 
 - step 1: 
 
 ```bash
@@ -118,7 +139,7 @@ Mongoose is an ODM (Object Data Modeling) library for Node.js that simplifies wo
 So Mongoose gives us SQL-like discipline for a NoSQL database.
 
 ## Schema:
-A Schema defines the structure of your data.
+A Schema defines the structure of our data.
 
 ```js
 const mongoose = require('mongoose');
@@ -131,17 +152,422 @@ const userSchema = new mongoose.Schema({
 ```
 
 ## Model: 
-A Model is a wrapper around the schema used to interact with the database.
+A Model is a wrapper between database and schema. For the help of model we can do operation to the MongoDB with maintaining the rules of schema.
 
-```
+```js
 const User = mongoose.model('User', userSchema);
 ```
 
-# Schemas: 
+# Schema Types: 
+A SchemaType defines the type and behavior of a single field inside a Schema.
+
+```js
+const userSchema = new mongoose.Schema({
+  name: String,
+  age: Number,
+  email: {
+    type: String,
+    required: true,
+    lowercase: true,
+  },
+});
+```
+here, 
+- name → SchemaType = String
+- age → SchemaType = Number
+- email → SchemaType = String + extra rules
+
+Below are complete list of all supported schema types: 
+```
+String, Number, Date, Buffer, Boolean, ObjectId, Array, Mixed, Union, Decimal128, Map, Schema, UUID, BigInt, Double, Int32
+```
+
+```js
+const mongoose = require('mongoose');
+
+const exampleSchema = new mongoose.Schema({
+  name: String,                           // String
+  age: Number,                            // Number
+  isActive: Boolean,                      // Boolean
+  createdAt: Date,                        // Date
+
+  file: Buffer,                           // Buffer (binary data) e.g. Buffer.from("hello")
+
+  userId: mongoose.Schema.Types.ObjectId, // ObjectId
+
+  tags: [String],                         // Array
+
+  anything: mongoose.Schema.Types.Mixed,  // Mixed (any type) Dangerous
+
+  price: mongoose.Schema.Types.Decimal128, // Decimal128 (high precision) e.g. price: "19.99"
+
+  settings: {
+    type: Map,
+    of: String                            // Map (key-value pairs) 
+  },
+
+  nested: new mongoose.Schema({           // Schema (subdocument)
+    field: String
+  }),
+
+  uuid: mongoose.Schema.Types.UUID,       // UUID
+
+  bigCounter: BigInt,                     // BigInt
+
+  preciseNumber: mongoose.Schema.Types.Double, // Double
+
+  smallNumber: mongoose.Schema.Types.Int32,    // Int32
+});
+
+const Example = mongoose.model('Example', exampleSchema);
+```
+
+
+Most Used Schema Types: 
+```
+String, Number, Boolean, Date, ObjectId, Array
+```
+
+```js
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  name: String,                 // String
+  age: Number,                 // Number
+  isActive: Boolean,           // Boolean
+  createdAt: Date,             // Date
+  profileId: mongoose.Schema.Types.ObjectId, // ObjectId
+  tags: [String],              // Array of strings ["developer", "mern", "learner"]
+});
+
+const User = mongoose.model('User', userSchema);
+```
+
+# Schema Type Options: 
+## Common Schema Type Options: 
+### required: 
+Make field mandatory.
+
+```js
+email: {
+  type: String,
+  required: true
+}
+```
+
+```js
+required: [true, "Email is required"]
+```
+
+### default: 
+Set default value.
+
+```js
+isActive: {
+  type: Boolean,
+  default: true
+}
+```
+
+```js
+createdAt: {
+  type: Date,
+  default: Date.now
+}
+```
+Note: Don’t do Date.now() ❌ → it runs once. Use Date.now ✅
+
+### unique: 
+creates MongoDB unique index for that fields. So for that same data not allowed twice. if found it gives mongodb error. 
+
+```js
+email: {
+  type: String,
+  unique: true
+}
+```
+
+Note: unique works on mongodb level, not mongoose level. SO mongoose can't validate uniqueness. so always handle duplicate error manually.
+
+### select:
+Control field visibility. Useful for secret fields that we don't want to show anyway on response.
+
+```
+password: {
+  type: String,
+  select: false
+}
+```
+### immutable: 
+Prevent updates after creation.
+
+```js
+email: {
+  type: String,
+  immutable: true
+}
+```
+
+### validate: 
+Custom validation.
+
+```js
+email: {
+  type: String,
+  validate: {
+    validator: (v) => v.includes('@'),
+    message: "Invalid email"
+  }
+}
+```
+
+```js
+tags: {
+  type: [String],
+  validate: v => v.length <= 5
+}
+```
+
+
+### Set: 
+A setter is a function that runs when create data to MongoDB.
+
+```js
+name: {
+  type: String,
+  set: v => v.trim() // { name: "   Tamim   " } --> "Tamim"
+}
+```
+
+```js
+await User.create(req.body);
+```
+
+Note: set only works creation operations, it does not run on update operations by default. To enable we need to use runValidators. 
+
+```js
+await Users.findByIdAndUpdate(filter, { name: "   Tamim   " }, 
+{
+    new: true,
+    runValidators: true
+  });
+```
+
+### Get: 
+A getter is a function that runs when we read data from a document.
+
+```js
+name: {
+  type: String,
+  get: v => v.toUpperCase()
+}
+```
+
+```js
+const user = await User.findById(filter);
+console.log(user.name); // "TAMIM"
+```
+
+Note: Getter does NOT run in JSON output by default. To enable it, use getters: true inside toJSON options.
+
+```js
+const userSchema = new mongoose.Schema({
+  name: String,
+  email: String,
+});
+
+userSchema.set('toJSON', { getters: true });
+```
+
+or: 
+
+```js
+const user = await User.findById(filter);
+user.toJSON({ getters: true });
+```
+
+or: 
+
+```js
+schema.set('toJSON', { getters: true }); // now all schemas can works with getter
+```
+
+### Index: 
+
+```js
+email: {
+  type: String,
+  index: true
+}
+```
+
+- Without index: 
+
+```js
+await User.findOne({ email: "a@gmail.com" });
+```
+
+MongoDB will scan every document in the collection
+
+- With index: 
+MongoDB uses a data structure (like B-Tree) that time complexity is O(log n) super fast.
+
+### expires: 
+auto delete data after expires time.
+```js
+createdAt: {
+  type: Date,
+  expires: 3600 // seconds
+}
+```
+
+## String-Specific Schema Type Options:
+### lowercase, uppercase, trim: 
+
+```js
+email: {
+  type: String,
+  lowercase: true,
+  trim: true
+}
+```
+
+### match: 
+regex validation.
+
+```js
+email: {
+  type: String,
+  match: [/^\S+@\S+\.\S+$/, "Invalid email"]
+}
+```
+
+### enum: 
+
+```js
+role: {
+  type: String,
+  enum: ["user", "admin"]
+}
+```
+
+## Number-Specific Schema Type Options: 
+
+### min / max:
+
+```js
+age: {
+  type: Number,
+  min: 18,
+  max: 60
+}
+```
+
+
+## ObjectId-Specific Schema Type Options: 
+### ref:
+ref tells Mongoose this ObjectId points to a document in another collection (Profile)
+
+```js
+profileId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Profile"
+}
+```
+
+MongoDB doesn’t have joins like SQL.. so ref allows populate function on mongoose, that help to get that id data: 
+
+Without ref: 
+
+
+```js
+profileId: {
+  type: mongoose.Schema.Types.ObjectId,
+}
+```
+
+```js
+const user = await User.findById(id);
+
+// output
+{
+  "name": "Tamim",
+  "profileId": "65f1abc123..."
+}
+```
+
+With ref + populate: 
+
+```js
+profileId: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "Profile"
+}
+```
+
+```js
+const user = await User.findById(id).populate("profileId");
+
+// output
+{
+  "name": "Tamim",
+  "profileId": {
+    "_id": "65f1abc123...",
+    "bio": "Full-stack dev",
+    "age": 22
+  }
+}
+```
+
+## Example: 
+
+```js
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+    trim: true
+  },
+
+  email: {
+    type: String,
+    required: true,
+    unique: true,
+    lowercase: true,
+    match: /^\S+@\S+\.\S+$/
+  },
+
+  password: {
+    type: String,
+    required: true,
+    select: false
+  },
+
+  age: {
+    type: Number,
+    min: 18
+  },
+
+  role: {
+    type: String,
+    enum: ["user", "admin"],
+    default: "user"
+  },
+
+  profileId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "Profile"
+  }
+});
+```
+
+
+
+
 
 # Examples: 
 
-## Example 1: 
+## Example 1: Express + JS + Mongoose 
 
 ```js
 // index.js
