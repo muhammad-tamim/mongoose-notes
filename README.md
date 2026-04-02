@@ -26,6 +26,8 @@
   - [ObjectId-Specific Schema Type Options:](#objectid-specific-schema-type-options)
     - [ref:](#ref)
   - [Example:](#example)
+- [Schema Options:](#schema-options)
+    - [timestamps:](#timestamps)
 - [Examples:](#examples)
   - [Example 1: Express + JS + Mongoose](#example-1-express--js--mongoose)
 
@@ -561,9 +563,26 @@ const userSchema = new mongoose.Schema({
 });
 ```
 
+# Schema Options: 
+Schema options are configuration settings for the entire schema, not individual fields. 
 
+Below a complete list of schema options in mongoose. 
 
+```
+timestamps, versionKey, collection, strict, minimize, toJSON / toObject, 
+id, _id, capped, bufferCommands, strictQuery, autoIndex, 
+```
 
+Note: For most of the case we skip schema options thats why this chapter is not much important as scheme type options.
+
+### timestamps:
+Automatically adds `createdAt` and `updatedAt`: 
+
+```js
+const schema = new mongoose.Schema({}, {
+  timestamps: true
+});
+```
 
 # Examples: 
 
