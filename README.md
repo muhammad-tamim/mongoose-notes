@@ -4,6 +4,7 @@
 - [Introduction:](#introduction)
   - [Schema:](#schema)
   - [Model:](#model)
+  - [Operation Buffering:](#operation-buffering)
 - [Schema Types:](#schema-types)
 - [Schema Type Options:](#schema-type-options)
   - [Common Schema Type Options:](#common-schema-type-options)
@@ -159,6 +160,18 @@ A Model is a wrapper between database and schema. For the help of model we can d
 ```js
 const User = mongoose.model('User', userSchema);
 ```
+
+## Operation Buffering: 
+Mongoose lets you start using your models immediately, without waiting for mongoose to establish a connection to MongoDB. That's because mongoose buffers model function calls internally.
+
+```js
+mongoose.connect('mongodb://127.0.0.1:27017/myapp');
+const MyModel = mongoose.model('Test', new Schema({ name: String }));
+// Works
+await MyModel.findOne();
+```
+
+
 
 # Schema Types: 
 A SchemaType defines the type and behavior of a single field inside a Schema.
@@ -583,6 +596,7 @@ const schema = new mongoose.Schema({}, {
   timestamps: true
 });
 ```
+
 
 # Examples: 
 
