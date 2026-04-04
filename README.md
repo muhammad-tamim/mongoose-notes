@@ -87,6 +87,8 @@
     - [findByIdAndDelete():](#findbyidanddelete)
     - [deleteMany():](#deletemany)
     - [findOneAndDelete():](#findoneanddelete)
+- [Middleware:](#middleware)
+  - [Example:](#example-1)
 - [Examples:](#examples)
   - [Example 1: Express + JS + Mongoose](#example-1-express--js--mongoose)
 
@@ -1972,6 +1974,81 @@ app.delete('/users/:email', async (req, res) => {
     const filter = req.params.email
     const result = await usersCollection.findOneAndDelete(filter);
     res.send(result);
+});
+```
+
+# Middleware: 
+Middleware (hooks) are functions that run before (pre) or after (post) of a specific Mongoose operation.
+
+```
+Request → Middleware → DB Operation → Middleware → Response
+```
+
+Note: Express and Mongoose middleware solve completely different problems: 
+
+| Layer    | Responsibility                 |
+| -------- | ------------------------------ |
+| Express  | HTTP layer (request/response)  |
+| Mongoose | Data layer (database behavior) |
+
+
+Express middlewares Runs when a request hits your API
+
+```js
+app.use((req, res, next) => {
+  console.log('Incoming request');
+  next();
+});
+```
+
+Mongoose middlewares Runs when data interacts with MongoDB (before and after)
+
+```js
+userSchema.pre('save', function () {
+  console.log('Before saving to DB');
+});
+```
+
+```js
+userSchema.post('save', function (doc) {
+  console.log('User saved:', doc._id);
+});
+```
+
+## Example: 
+
+Without Mongoose, here we need to hashed our password on routes codes, 
+
+```js
+app.post('/register', async (req, res) => {
+  req.body.password = await bcrypt.hash(req.body.password, 10);
+  await User.create(req.body);
+});
+```
+
+but with the help of mongoose middleware we can hashed this password by middleware like this: 
+
+```js
+userSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+  this.password = await bcrypt.hash(this.password, 10);
+});
+```
+
+Now every post request with the User model that used userSchema will automatically hashed password before saving it to the db.
+
+for updating password: 
+
+```js
+userSchema.pre('findOneAndUpdate', async function (next) {
+  const update = this.getUpdate();
+
+  if (update.password) {
+    const salt = await bcrypt.genSalt(10);
+    update.password = await bcrypt.hash(update.password, salt);
+  }
+
+  next();
 });
 ```
 
