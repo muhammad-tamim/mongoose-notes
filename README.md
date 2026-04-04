@@ -30,6 +30,17 @@
   - [Example:](#example)
 - [Schema Options:](#schema-options)
     - [timestamps:](#timestamps)
+- [Validation:](#validation)
+  - [Built-in Validators:](#built-in-validators)
+    - [required (String):](#required-string)
+    - [min / max (Number):](#min--max-number)
+    - [minlength / maxlength (String):](#minlength--maxlength-string)
+    - [enum:](#enum-1)
+    - [match (regex):](#match-regex)
+  - [Custom Validators:](#custom-validators)
+    - [Simple:](#simple)
+    - [Async/await:](#asyncawait)
+    - [as Function:](#as-function)
 - [CRUD Operation:](#crud-operation)
   - [Create (POST)](#create-post)
     - [create():](#create)
@@ -48,6 +59,7 @@
     - [findOne():](#findone)
     - [findById():](#findbyid)
     - [countDocuments():](#countdocuments)
+    - [estimatedDocumentCount():](#estimateddocumentcount)
     - [distinct():](#distinct)
     - [aggregate():](#aggregate)
       - [Common Aggregation Stages:](#common-aggregation-stages)
@@ -55,6 +67,7 @@
     - [PATCH (partial update - recommended):](#patch-partial-update---recommended)
       - [updateOne():](#updateone)
       - [findByIdAndUpdate():](#findbyidandupdate)
+      - [findOneAndUpdate()](#findoneandupdate)
       - [updateMany():](#updatemany)
     - [Patch Operators:](#patch-operators)
       - [$set:](#set-1)
@@ -678,6 +691,130 @@ const schema = new mongoose.Schema({}, {
 ```
 
 
+
+# Validation: 
+Validation in Mongoose ensures data integrity before writing to MongoDB. It runs automatically on `save()` and `create()` but Does NOT run by default on `update(put/patch)` operation for that we need to use: 
+
+```js
+await User.findByIdAndUpdate(id, data, {
+  runValidators: true, // this ensure validation for update
+  new: true
+});
+```
+
+## Built-in Validators: 
+### required (String):
+
+```js
+name: {
+  type: String,
+  required: true
+}
+```
+or:
+
+```js
+required: [true, 'Name is required']
+```
+
+### min / max (Number): 
+
+```js
+age: {
+  type: Number,
+  min: [18, 'Minimum age is 18'],
+  max: [65, 'Maximum age is 65']
+}
+```
+
+### minlength / maxlength (String): 
+
+```js
+username: {
+  type: String,
+  minlength: [3, 'Too short'],
+  maxlength: [20, 'Too long']
+}
+```
+
+### enum: 
+
+```js
+role: {
+  type: String,
+  enum: ['user', 'admin']
+}
+```
+
+
+Better: 
+
+```js
+enum: {
+  values: ['user', 'admin'],
+  message: 'Invalid role'
+}
+```
+
+### match (regex): 
+
+```js
+email: {
+  type: String,
+  match: [/^\S+@\S+\.\S+$/, 'Invalid email']
+}
+```
+
+
+
+## Custom Validators: 
+
+### Simple: 
+
+```js
+password: {
+  type: String,
+  validate: {
+    validator: function (value) {
+      return value.length >= 6;
+    },
+    message: 'Password must be at least 6 characters'
+  }
+}
+```
+
+### Async/await: 
+
+```js
+email: {
+  type: String,
+  validate: {
+    validator: async function (value) {
+      const user = await mongoose.models.User.findOne({ email: value });
+      return !user;
+    },
+    message: 'Email already exists'
+  }
+}
+```
+
+### as Function: 
+
+```js
+const isStrongPassword = (val) => {
+  return /^(?=.*[A-Z])(?=.*\d).{6,}$/.test(val);
+};
+
+password: {
+  type: String,
+  validate: {
+    validator: isStrongPassword,
+    message: 'Weak password'
+  }
+}
+```
+
+
 # CRUD Operation:
 
 ```js
@@ -905,13 +1042,28 @@ app.get('/users/:id', async (req, res) => {
 ### countDocuments():
 
 ```js
-app.get('/users', async (req, res) => {
-    const role = req.query.role; // GET http://localhost:3000/users?role=user
-    const filter = {role}
-    const total = await usersCollection.countDocuments(filter);
+app.get('/users/count', async (req, res) => {
+    const total = await usersCollection.countDocuments();
     res.send( total );
 });
 ```
+
+### estimatedDocumentCount(): 
+
+```js
+app.get('/users/count', async (req, res) => {
+    const total = await usersCollection.estimatedDocumentCount()
+    res.send( total );
+});
+```
+
+Note: If need accurate + filtered count, DO NOT use it:  
+
+| Method                   | Speed       | Accuracy | Filter Support |
+| ------------------------ | ----------- | -------- | -------------- |
+| `estimatedDocumentCount` | ⚡ Very Fast | ❌ Approx | ❌ No           |
+| `countDocuments`         | 🐢 Slower    | ✅ Exact  | ✅ Yes          |
+
 
 ### distinct():
 Returns all unique values of a specific field as array of object.
@@ -1457,7 +1609,6 @@ app.patch('/users/:id', async (req, res) => {
 ```js
 app.patch('/users/:id', async (req, res) => {
     const id = req.params.id;
-    const filter = {_id: id}
     const updatedData = req.body;
     const updatedDoc = { 
         $set: {
@@ -1465,7 +1616,7 @@ app.patch('/users/:id', async (req, res) => {
           age: updatedData.age
         }
       }
-    const result = await usersCollection.findByIdAndUpdate(filter, updatedDoc, {
+    const result = await usersCollection.findByIdAndUpdate(id, updatedDoc, {
       new: true,
       runValidators: true,
     });
@@ -1481,14 +1632,35 @@ And also this is not recommended to add all req.body data as updatedData.
 ```js
 app.put('/users/:id', async (req, res) => {
     const id = req.params.id
-    const filter = {_id: id}
     const updatedData = req.body
     const updatedDoc = {
         new: true,
         runValidators: true,
         overwrite: true,
     }
-    const result = await UsersCollection.findByIdAndUpdate(filter, updatedData, updatedDoc);
+    const result = await UsersCollection.findByIdAndUpdate(id, updatedData, updatedDoc);
+    res.send(result);
+});
+```
+
+#### findOneAndUpdate()
+
+```js
+app.patch('/users/:id', async (req, res) => {
+    const id = req.params.id;
+    const filter = {_id: id}
+    const updatedData = req.body;
+    const updatedDoc = { 
+        $set: {
+          name: updatedData.name
+          age: updatedData.age
+        }
+      }
+    const result = await usersCollection.findOneAndUpdate(filter, updatedDoc, {
+      new: true,
+      runValidators: true,
+    });
+
     res.send(result);
 });
 ```
