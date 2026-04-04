@@ -89,6 +89,7 @@
     - [findOneAndDelete():](#findoneanddelete)
 - [Middleware:](#middleware)
   - [Example:](#example-1)
+- [Transaction:](#transaction)
 - [Examples:](#examples)
   - [Example 1: Express + JS + Mongoose](#example-1-express--js--mongoose)
 
@@ -2049,6 +2050,185 @@ userSchema.pre('findOneAndUpdate', async function (next) {
   }
 
   next();
+});
+```
+
+# Transaction: 
+A transaction lets us run multiple database operations as a single unit. 
+
+example: 
+
+```js
+// index.js
+import express from 'express';
+import mongoose from 'mongoose';
+
+const app = express();
+app.use(express.json());
+
+/* =======================
+   DB CONNECT
+======================= */
+await mongoose.connect('mongodb://127.0.0.1:27017/transactionDB');
+console.log('MongoDB Connected');
+
+/* =======================
+   MODEL
+======================= */
+const userSchema = new mongoose.Schema({
+  name: {
+    type: String,
+    required: true,
+  },
+  balance: {
+    type: Number,
+    required: true,
+    min: 0,
+  },
+}, { timestamps: true });
+
+const User = mongoose.model('User', userSchema);
+
+/* =======================
+   SEED (OPTIONAL)
+======================= */
+app.post('/seed', async (req, res) => {
+  await User.deleteMany();
+
+  const users = await User.insertMany([
+    { name: 'Alice', balance: 1000 },
+    { name: 'Bob', balance: 500 },
+  ]);
+
+  res.json(users);
+});
+
+/* =======================
+   TRANSACTION API
+======================= */
+app.post('/transfer', async (req, res) => {
+  const { fromUserId, toUserId, amount } = req.body;
+
+  const session = await mongoose.startSession();
+
+  try {
+    const result = await session.withTransaction(async () => {
+
+      if (amount <= 0) {
+        throw new Error('Invalid amount');
+      }
+
+      /* =======================
+         ATOMIC DEBIT
+      ======================= */
+      const debit = await User.updateOne(
+        { _id: fromUserId, balance: { $gte: amount } },
+        { $inc: { balance: -amount } },
+        { session }
+      );
+
+      if (debit.modifiedCount === 0) {
+        throw new Error('Insufficient balance or sender not found');
+      }
+
+      /* =======================
+         CREDIT
+      ======================= */
+      const credit = await User.updateOne(
+        { _id: toUserId },
+        { $inc: { balance: amount } },
+        { session }
+      );
+
+      if (credit.modifiedCount === 0) {
+        throw new Error('Receiver not found');
+      }
+
+      return { message: 'Transfer successful' };
+    });
+
+    res.json({
+      success: true,
+      data: result,
+    });
+
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  } finally {
+    session.endSession();
+  }
+});
+
+/* =======================
+   GET USERS
+======================= */
+app.get('/users', async (req, res) => {
+  const users = await User.find().lean();
+  res.json(users);
+});
+
+/* =======================
+   SERVER
+======================= */
+app.listen(5000, () => {
+  console.log('Server running on port 5000');
+});
+```
+
+we can make the post api simple like this, but this is not production safe: 
+
+```js
+app.post('/transfer', async (req, res) => {
+  const { fromUserId, toUserId, amount } = req.body;
+
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+
+      if (amount <= 0) {
+        throw new Error('Invalid amount');
+      }
+
+      // 1. Get users
+      const sender = await User.findById(fromUserId).session(session);
+      const receiver = await User.findById(toUserId).session(session);
+
+      if (!sender || !receiver) {
+        throw new Error('User not found');
+      }
+
+      // 2. Check balance
+      if (sender.balance < amount) {
+        throw new Error('Insufficient balance');
+      }
+
+      // 3. Simple JS update (what you wanted)
+      sender.balance -= amount;
+      receiver.balance += amount;
+
+      // 4. Save
+      await sender.save({ session });
+      await receiver.save({ session });
+
+    });
+
+    res.json({
+      success: true,
+      message: 'Transfer successful',
+    });
+
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  } finally {
+    session.endSession();
+  }
 });
 ```
 
